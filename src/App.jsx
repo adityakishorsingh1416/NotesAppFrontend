@@ -7,7 +7,7 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
 
-  const API_URL = "http://localhost:5000";
+  const API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const checkSession = async () => {
