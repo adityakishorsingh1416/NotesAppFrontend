@@ -11,8 +11,7 @@ const Notes = ({ username }) => {
   const [editContent, setEditContent] = useState("");
 
   // Backend URL
-  const API_URL = "http://localhost:5000";
-
+ const API_URL = import.meta.env.VITE_API_URL;
   // LOGOUT
   const logout = () => {
     window.location.href = `${API_URL}/logout`;
