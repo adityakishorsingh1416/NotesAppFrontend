@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import Notes from "./pages/Notes.jsx";
 
@@ -9,13 +8,16 @@ function App() {
 
   const API_URL = import.meta.env.VITE_API_URL;
 
+  console.log("API_URL:", API_URL);
+
   useEffect(() => {
     const checkSession = async () => {
       try {
-        // Check whether the user is logged in
         const res = await fetch(`${API_URL}/check`, {
           credentials: "include",
         });
+
+        console.log("CHECK STATUS:", res.status);
 
         if (!res.ok) {
           throw new Error("Failed to check session");
@@ -23,11 +25,10 @@ function App() {
 
         const data = await res.json();
 
-        setLoggedIn(data.loggedIn);
+        console.log("CHECK RESPONSE:", data);
 
-        if (data.username) {
-          setUsername(data.username);
-        }
+        setLoggedIn(data.loggedIn);
+        setUsername(data.username || "");
       } catch (error) {
         console.error("Session check error:", error);
         setLoggedIn(false);
@@ -39,7 +40,6 @@ function App() {
     checkSession();
   }, []);
 
-  // While checking the session
   if (loading) {
     return (
       <div className="text-white p-5">
@@ -48,14 +48,13 @@ function App() {
     );
   }
 
-  // User is not logged in
   if (!loggedIn) {
     window.location.href = `${API_URL}/login`;
     return null;
   }
 
-  // User is logged in
   return <Notes username={username} />;
 }
 
 export default App;
+
