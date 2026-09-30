@@ -1,190 +1,437 @@
-const express = require("express");
-const jwt = require("jsonwebtoken");
-const mongoose = require("mongoose");
-const Note = require("../models/Note");
+import { useEffect, useState } from "react";
 
-const router = express.Router();
+function Notes({ username }) {
+  const [notes, setNotes] = useState([]);
+  const [heading, setHeading] = useState("");
+  const [content, setContent] = useState("");
 
-// ===============================
-// JWT AUTH MIDDLEWARE
-// ===============================
+  const [editingId, setEditingId] = useState(null);
+  const [editHeading, setEditHeading] = useState("");
+  const [editContent, setEditContent] = useState("");
 
-function requireLogin(req, res, next) {
-  try {
-    const authHeader = req.headers.authorization;
+  const API_URL = import.meta.env.VITE_API_URL;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        message: "Authentication required",
+  // ===============================
+  // GET JWT TOKEN
+  // ===============================
+
+  const getToken = () => {
+    return localStorage.getItem("token");
+  };
+
+  // ===============================
+  // FETCH NOTES
+  // ===============================
+
+  const fetchNotes = async () => {
+    try {
+      const token = getToken();
+
+      if (!token) {
+        window.location.href = `${API_URL}/login`;
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/notes`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = `${API_URL}/login`;
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch notes");
+      }
+
+      const data = await res.json();
+
+      setNotes(data);
+    } catch (error) {
+      console.error("Fetch notes error:", error);
+    }
+  };
+
+  // ===============================
+  // LOAD NOTES
+  // ===============================
+
+  useEffect(() => {
+    fetchNotes();
+  }, []);
+
+  // ===============================
+  // ADD NOTE
+  // ===============================
+
+  const handleAddNote = async (e) => {
+    e.preventDefault();
+
+    if (!heading.trim() || !content.trim()) {
+      alert("Please enter heading and content");
+      return;
     }
 
-    const token = authHeader.split(" ")[1];
+    try {
+      const token = getToken();
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
+      const res = await fetch(`${API_URL}/api/notes`, {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          heading,
+          content,
+        }),
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = `${API_URL}/login`;
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to create note");
+      }
+
+      const data = await res.json();
+
+      setNotes((prevNotes) => [
+        data.newNote,
+        ...prevNotes,
+      ]);
+
+      setHeading("");
+      setContent("");
+    } catch (error) {
+      console.error("Create note error:", error);
+      alert("Failed to create note");
+    }
+  };
+
+  // ===============================
+  // DELETE NOTE
+  // ===============================
+
+  const handleDelete = async (id) => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this note?"
     );
 
-    req.userId = decoded.userId;
+    if (!confirmDelete) {
+      return;
+    }
 
-    next();
-  } catch (error) {
-    console.error("JWT authentication error:", error);
+    try {
+      const token = getToken();
 
-    return res.status(401).json({
-      message: "Invalid or expired token",
-    });
-  }
+      const res = await fetch(`${API_URL}/api/notes/${id}`, {
+        method: "DELETE",
+
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = `${API_URL}/login`;
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to delete note");
+      }
+
+      setNotes((prevNotes) =>
+        prevNotes.filter((note) => note._id !== id)
+      );
+    } catch (error) {
+      console.error("Delete note error:", error);
+      alert("Failed to delete note");
+    }
+  };
+
+  // ===============================
+  // START EDIT
+  // ===============================
+
+  const startEdit = (note) => {
+    setEditingId(note._id);
+    setEditHeading(note.heading);
+    setEditContent(note.content);
+  };
+
+  // ===============================
+  // CANCEL EDIT
+  // ===============================
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditHeading("");
+    setEditContent("");
+  };
+
+  // ===============================
+  // UPDATE NOTE
+  // ===============================
+
+  const handleUpdate = async (id) => {
+    if (!editHeading.trim() || !editContent.trim()) {
+      alert("Heading and content are required");
+      return;
+    }
+
+    try {
+      const token = getToken();
+
+      const res = await fetch(`${API_URL}/api/notes/${id}`, {
+        method: "PUT",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          heading: editHeading,
+          content: editContent,
+        }),
+      });
+
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = `${API_URL}/login`;
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to update note");
+      }
+
+      const data = await res.json();
+
+      setNotes((prevNotes) =>
+        prevNotes.map((note) =>
+          note._id === id ? data.updatedNote : note
+        )
+      );
+
+      cancelEdit();
+    } catch (error) {
+      console.error("Update note error:", error);
+      alert("Failed to update note");
+    }
+  };
+
+  // ===============================
+  // LOGOUT
+  // ===============================
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+
+    window.location.href = `${API_URL}/login`;
+  };
+
+  // ===============================
+  // UI
+  // ===============================
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+
+      {/* HEADER */}
+      <div className="max-w-5xl mx-auto flex justify-between items-center mb-8">
+
+        <div>
+          <h1 className="text-3xl font-bold">
+            My Notes
+          </h1>
+
+          {username && (
+            <p className="text-gray-400 mt-1">
+              Welcome, {username}
+            </p>
+          )}
+        </div>
+
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* ADD NOTE FORM */}
+      <div className="max-w-5xl mx-auto mb-8">
+
+        <form
+          onSubmit={handleAddNote}
+          className="bg-gray-800 p-6 rounded-xl shadow-lg"
+        >
+
+          <h2 className="text-xl font-semibold mb-4">
+            Add New Note
+          </h2>
+
+          <input
+            type="text"
+            placeholder="Note heading"
+            value={heading}
+            onChange={(e) => setHeading(e.target.value)}
+            className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4 outline-none focus:ring-2 focus:ring-green-500"
+          />
+
+          <textarea
+            placeholder="Write your note..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows="5"
+            className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4 outline-none focus:ring-2 focus:ring-green-500"
+          />
+
+          <button
+            type="submit"
+            className="bg-green-500 hover:bg-green-600 px-5 py-2 rounded-lg font-semibold"
+          >
+            Add Note
+          </button>
+
+        </form>
+      </div>
+
+      {/* NOTES */}
+      <div className="max-w-5xl mx-auto">
+
+        {notes.length === 0 ? (
+          <div className="bg-gray-800 rounded-xl p-6 text-center text-gray-400">
+            No notes yet. Create your first note!
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2">
+
+            {notes.map((note) => (
+
+              <div
+                key={note._id}
+                className="bg-gray-800 rounded-xl p-6 shadow-lg"
+              >
+
+                {editingId === note._id ? (
+
+                  // ===============================
+                  // EDIT MODE
+                  // ===============================
+
+                  <div>
+
+                    <input
+                      type="text"
+                      value={editHeading}
+                      onChange={(e) =>
+                        setEditHeading(e.target.value)
+                      }
+                      className="w-full bg-gray-700 text-white p-3 rounded-lg mb-3 outline-none"
+                    />
+
+                    <textarea
+                      value={editContent}
+                      onChange={(e) =>
+                        setEditContent(e.target.value)
+                      }
+                      rows="5"
+                      className="w-full bg-gray-700 text-white p-3 rounded-lg mb-4 outline-none"
+                    />
+
+                    <div className="flex gap-3">
+
+                      <button
+                        onClick={() =>
+                          handleUpdate(note._id)
+                        }
+                        className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg"
+                      >
+                        Save
+                      </button>
+
+                      <button
+                        onClick={cancelEdit}
+                        className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg"
+                      >
+                        Cancel
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                ) : (
+
+                  // ===============================
+                  // VIEW MODE
+                  // ===============================
+
+                  <div>
+
+                    <h2 className="text-xl font-bold mb-2">
+                      {note.heading}
+                    </h2>
+
+                    <p className="text-gray-300 whitespace-pre-wrap mb-5">
+                      {note.content}
+                    </p>
+
+                    <div className="flex gap-3">
+
+                      <button
+                        onClick={() => startEdit(note)}
+                        className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          handleDelete(note._id)
+                        }
+                        className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
+                      >
+                        Delete
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                )}
+
+              </div>
+
+            ))}
+
+          </div>
+        )}
+
+      </div>
+
+    </div>
+  );
 }
 
-// ===============================
-// GET NOTES
-// ===============================
+// IMPORTANT:
+// App.jsx imports this component as:
+// import Notes from "./pages/Notes.jsx";
 
-router.get("/", requireLogin, async (req, res) => {
-  try {
-    const notes = await Note.find({
-      userId: req.userId,
-    }).sort({
-      createdAt: -1,
-    });
-
-    res.json(notes);
-  } catch (error) {
-    console.error("Fetch notes error:", error);
-
-    res.status(500).json({
-      message: "Failed to fetch notes",
-    });
-  }
-});
-
-// ===============================
-// CREATE NOTE
-// ===============================
-
-router.post("/", requireLogin, async (req, res) => {
-  try {
-    const { heading, content } = req.body;
-
-    if (!heading || !content) {
-      return res.status(400).json({
-        message: "Heading and content are required",
-      });
-    }
-
-    const newNote = new Note({
-      heading,
-      content,
-      userId: req.userId,
-    });
-
-    await newNote.save();
-
-    res.status(201).json({
-      newNote,
-    });
-  } catch (error) {
-    console.error("Create note error:", error);
-
-    res.status(500).json({
-      message: "Failed to create note",
-    });
-  }
-});
-
-// ===============================
-// UPDATE NOTE
-// ===============================
-
-router.put("/:id", requireLogin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { heading, content } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        message: "Invalid note ID",
-      });
-    }
-
-    if (!heading || !content) {
-      return res.status(400).json({
-        message: "Heading and content are required",
-      });
-    }
-
-    const updatedNote = await Note.findOneAndUpdate(
-      {
-        _id: id,
-        userId: req.userId,
-      },
-      {
-        heading,
-        content,
-      },
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
-
-    if (!updatedNote) {
-      return res.status(404).json({
-        message: "Note not found",
-      });
-    }
-
-    res.json({
-      updatedNote,
-    });
-  } catch (error) {
-    console.error("Update note error:", error);
-
-    res.status(500).json({
-      message: "Failed to update note",
-    });
-  }
-});
-
-// ===============================
-// DELETE NOTE
-// ===============================
-
-router.delete("/:id", requireLogin, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        message: "Invalid note ID",
-      });
-    }
-
-    const deletedNote = await Note.findOneAndDelete({
-      _id: id,
-      userId: req.userId,
-    });
-
-    if (!deletedNote) {
-      return res.status(404).json({
-        message: "Note not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      message: "Note deleted successfully",
-    });
-  } catch (error) {
-    console.error("Delete note error:", error);
-
-    res.status(500).json({
-      message: "Failed to delete note",
-    });
-  }
-});
-
-module.exports = router;
+export default Notes;
 
