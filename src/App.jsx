@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import Notes from "./pages/Notes.jsx";
 
@@ -12,12 +11,39 @@ function App() {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        // =================================
+        // GET TOKEN FROM URL
+        // =================================
+
+        const params = new URLSearchParams(window.location.search);
+        const urlToken = params.get("token");
+
+        if (urlToken) {
+          // Store token on Netlify's localStorage
+          localStorage.setItem("token", urlToken);
+
+          // Remove token from URL
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+          );
+        }
+
+        // =================================
+        // GET TOKEN FROM LOCAL STORAGE
+        // =================================
+
         const token = localStorage.getItem("token");
 
         if (!token) {
           setLoggedIn(false);
           return;
         }
+
+        // =================================
+        // CHECK JWT
+        // =================================
 
         const res = await fetch(`${API_URL}/check`, {
           headers: {
@@ -26,6 +52,8 @@ function App() {
         });
 
         const data = await res.json();
+
+        console.log("JWT CHECK:", data);
 
         if (data.loggedIn) {
           setLoggedIn(true);
@@ -47,6 +75,10 @@ function App() {
     checkSession();
   }, [API_URL]);
 
+  // =================================
+  // LOADING
+  // =================================
+
   if (loading) {
     return (
       <div className="text-white p-5">
@@ -55,10 +87,18 @@ function App() {
     );
   }
 
+  // =================================
+  // NOT LOGGED IN
+  // =================================
+
   if (!loggedIn) {
     window.location.href = `${API_URL}/login`;
     return null;
   }
+
+  // =================================
+  // LOGGED IN
+  // =================================
 
   return <Notes username={username} />;
 }
