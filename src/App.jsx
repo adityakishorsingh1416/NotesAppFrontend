@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import Notes from "./pages/Notes.jsx";
 
@@ -8,29 +9,35 @@ function App() {
 
   const API_URL = import.meta.env.VITE_API_URL;
 
-  console.log("API_URL:", API_URL);
-
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const res = await fetch(`${API_URL}/check`, {
-          credentials: "include",
-        });
+        const token = localStorage.getItem("token");
 
-        console.log("CHECK STATUS:", res.status);
-
-        if (!res.ok) {
-          throw new Error("Failed to check session");
+        if (!token) {
+          setLoggedIn(false);
+          return;
         }
+
+        const res = await fetch(`${API_URL}/check`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
         const data = await res.json();
 
-        console.log("CHECK RESPONSE:", data);
-
-        setLoggedIn(data.loggedIn);
-        setUsername(data.username || "");
+        if (data.loggedIn) {
+          setLoggedIn(true);
+          setUsername(data.username);
+        } else {
+          localStorage.removeItem("token");
+          setLoggedIn(false);
+        }
       } catch (error) {
-        console.error("Session check error:", error);
+        console.error("Authentication error:", error);
+
+        localStorage.removeItem("token");
         setLoggedIn(false);
       } finally {
         setLoading(false);
@@ -38,12 +45,12 @@ function App() {
     };
 
     checkSession();
-  }, []);
+  }, [API_URL]);
 
   if (loading) {
     return (
       <div className="text-white p-5">
-        Checking session...
+        Checking login...
       </div>
     );
   }
