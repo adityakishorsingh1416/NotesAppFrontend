@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import Notes from "./pages/Notes.jsx";
+import { Notes } from "./pages/Notes.jsx";
 
 function App() {
   const [loading, setLoading] = useState(true);
